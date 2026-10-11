@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 
-RAW_CSV_PATH = '../data/raw/weather_data.csv'
+RAW_CSV_PATH = 'data/raw/weather_data.csv'
 DASH = '-'
 NUM_DASHES = 10
 DASH_HEADER = "\n" + DASH * NUM_DASHES + "\n"
@@ -11,6 +11,7 @@ DASH_HEADER = "\n" + DASH * NUM_DASHES + "\n"
 class DataProcessor:
     def __init__(self, csv_path=RAW_CSV_PATH):
         self.df = pd.read_csv(csv_path)
+        self.raw_df = self.df.copy()
 
         self.df_train = None
         self.df_val = None
@@ -49,9 +50,9 @@ class DataProcessor:
         self.df_val = self.df.iloc[train_end_index:test_end_index]
         self.df_test = self.df.iloc[test_end_index:]
     def save_processed_data(self):
-        self.df_train.to_csv('../data/processed/weather_data_train.csv', index=False)
-        self.df_val.to_csv('../data/processed/weather_data_val.csv', index=False)
-        self.df_test.to_csv('../data/processed/weather_data_test.csv', index=False)
+        self.df_train.to_csv('data/processed/weather_data_train.csv', index=False)
+        self.df_val.to_csv('data/processed/weather_data_val.csv', index=False)
+        self.df_test.to_csv('data/processed/weather_data_test.csv', index=False)
 
 data_processor = DataProcessor()
 
