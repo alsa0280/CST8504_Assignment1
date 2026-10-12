@@ -1,9 +1,13 @@
 import sys
+import pandas as pd
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+#sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.data_processor import DataProcessor
+from src.predictor import Predictor
 import streamlit as st
 import plotly.express as px
+import numpy as np
+import json
 
 st.set_page_config(page_title="Weather Dashboard", layout="wide")
 
@@ -12,6 +16,9 @@ DAY_COLORS = {"Sunny": "yellow", "Cloudy": "grey", "Rainy": "blue", "Hot": "red"
 @st.cache_resource
 def load_processor():
     return DataProcessor()
+@st.cache_resource
+def load_predictor():
+    return Predictor()
 
 data_processor = load_processor()
 df = data_processor.df
@@ -77,3 +84,40 @@ with explore:
         scatterfig = px.scatter(filtered_df, x=xscatter, y=yscatter, color='day_type',color_discrete_map=DAY_COLORS,title=f"{yscatter} vs {xscatter}",labels={'day_type': 'Day type'})
         scatterfig.update_layout(title_x=0.5)
         st.plotly_chart(scatterfig, use_container_width=True)
+
+with predict:
+    st.subheader("Predict the Day Type")
+    with st.container(border=True):
+        c1, c2, c3 = st.columns(3)
+        inputs = {
+            'day_of_year': c1.number_input("Day of year", 1, 365, 180),
+            'day_temp':    c2.slider("Temperature (°C)", 5.0, 48.0, 25.0),
+            'humidity':    c3.slider("Humidity (%)", 10.0, 100.0, 60.0),
+            'cloud_cover': c1.slider("Cloud cover (%)", 0.0, 100.0, 30.0),
+            'uv_index':    c2.slider("UV index", 0.0, 11.0, 5.0),
+        }
+    if st.button("Predict"):
+        label, probabilities = load_predictor().predict(inputs)
+        with st.container(border=True):
+            font_color = DAY_COLORS[label]
+            st.markdown(f'Predicted day type: <span style="color: {font_color}; font-weight: bold;">{label}</span>',unsafe_allow_html=True)
+            prob_df = pd.DataFrame({'Day Type':probabilities.keys(), 'Probability':np.array(list(probabilities.values()))*100})
+            st.dataframe(prob_df, hide_index=True)
+            piefig = px.pie(prob_df, values='Probability', names='Day Type', color='Day Type', color_discrete_map=DAY_COLORS)
+            st.plotly_chart(piefig, use_container_width=True)
+
+with performance:
+    with open('models/metrics.json', 'r') as f:
+        metrics = json.load(f)
+    st.subheader("Best Model")
+    st.dataframe(pd.DataFrame([metrics])[['model', 'name','train_time','f1','precision','accuracy','recall']], hide_index=True, use_container_width=True)
+
+    left, right = st.columns(2)
+    with left, st.container(border=True):
+        st.subheader("Confusion Matrix")
+        cm_df = pd.DataFrame(metrics['confusion_matrix'], index=df['day_type'].unique(), columns=df['day_type'].unique())
+        st.dataframe(cm_df, use_container_width=True)
+    with right, st.container(border=True):
+        st.subheader("Feature Importances")
+        fi_df = pd.Series(metrics['feature_ranking']).sort_values()
+        st.plotly_chart(px.bar(x=fi_df.values, y=fi_df.index,labels={'x': 'Importance', 'y': 'Feature'}), use_container_width=True)

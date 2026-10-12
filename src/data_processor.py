@@ -1,7 +1,12 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+import sys
+from pathlib import Path
+#sys.path.insert(0, str(Path(__file__).resolve().parent))
+import joblib
 
 RAW_CSV_PATH = 'data/raw/weather_data.csv'
 DASH = '-'
@@ -27,8 +32,8 @@ class DataProcessor:
     def preprocess_data(self):
         self.replace_nan()
         self.remove_duplicates()
-        self.normalize_numeric_columns()
         self.create_subsets()
+        self.normalize_numeric_columns()
     def replace_nan(self):
         # Replace any NaN/None feature values with the column's median
         for column in self.df.columns[:-1]:
@@ -38,17 +43,17 @@ class DataProcessor:
     def remove_duplicates(self):
         self.df = self.df.drop_duplicates()
     def normalize_numeric_columns(self):
-        scaler = MinMaxScaler()
         numeric_cols = self.df.columns[:-1]
+        scaler = MinMaxScaler().fit(self.df_train[numeric_cols])
+        for split in (self.df_train, self.df_val, self.df_test):
+            split[numeric_cols] = scaler.transform(split[numeric_cols])
         self.df[numeric_cols] = scaler.fit_transform(self.df[numeric_cols])
-    def create_subsets(self):
-        df_size = len(self.df)
-        train_end_index = int(df_size * 0.7)
-        test_end_index = train_end_index + int(df_size * 0.15)
+        joblib.dump(scaler, "models/scaler.pkl")
 
-        self.df_train = self.df.iloc[:train_end_index]
-        self.df_val = self.df.iloc[train_end_index:test_end_index]
-        self.df_test = self.df.iloc[test_end_index:]
+    def create_subsets(self):
+        train, temp = train_test_split(self.df, test_size=0.30,stratify=self.df['day_type'], random_state=42)
+        val, test = train_test_split(temp, test_size=0.50,stratify=temp['day_type'], random_state=42)
+        self.df_train, self.df_val, self.df_test = train.copy(), val.copy(), test.copy()
     def save_processed_data(self):
         self.df_train.to_csv('data/processed/weather_data_train.csv', index=False)
         self.df_val.to_csv('data/processed/weather_data_val.csv', index=False)
