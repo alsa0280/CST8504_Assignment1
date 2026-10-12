@@ -59,7 +59,6 @@ seaborn==0.13.2
 six==1.17.0
 starlette==1.7.0
 streamlit==1.65.0
-tensorflow==2.21.0
 termcolor==3.3.0
 threadpoolctl==3.7.0
 toml==0.10.2
