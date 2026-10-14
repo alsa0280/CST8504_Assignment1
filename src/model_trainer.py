@@ -107,6 +107,7 @@ class ModelTrainer:
                        'recall': recall,
                        'accuracy': accuracy,
                        'train_time': str(model_dict[model_name][1]) + " seconds",
+                       'class_labels': best_model.classes_.tolist(),
                        'confusion_matrix': confusion_matrix(self.y_test, y_pred, labels=best_model.classes_).tolist(),
                        'feature_ranking': dict(zip(self.FEATURES, best_model.feature_importances_.tolist()))
                }
