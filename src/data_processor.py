@@ -47,7 +47,7 @@ class DataProcessor:
         scaler = MinMaxScaler().fit(self.df_train[numeric_cols])
         for split in (self.df_train, self.df_val, self.df_test):
             split[numeric_cols] = scaler.transform(split[numeric_cols])
-        self.df[numeric_cols] = scaler.fit_transform(self.df[numeric_cols])
+        self.df[numeric_cols] = scaler.transform(self.df[numeric_cols])
         joblib.dump(scaler, "models/scaler.pkl")
 
     def create_subsets(self):
@@ -59,7 +59,8 @@ class DataProcessor:
         self.df_val.to_csv('data/processed/weather_data_val.csv', index=False)
         self.df_test.to_csv('data/processed/weather_data_test.csv', index=False)
 
-data_processor = DataProcessor()
+if __name__ == "__main__":
+    data_processor = DataProcessor()
 
 
 

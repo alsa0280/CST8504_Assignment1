@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import classification_report, confusion_matrix, f1_score, accuracy_score, precision_recall_fscore_support
 from src.data_processor import DataProcessor
@@ -29,22 +29,39 @@ class ModelTrainer:
 
     def get_candidates(self):
         depths = [3,5,7,9]
-        base_names = ["rf", "dt"]
-        candidates = {'rf':{}, 'dt':{}}
+        base_names = ["rf", "dt", "et"]
+        candidates = {'rf': {}, 'dt': {}, 'et': {}}
         for base_name in base_names:
             for depth in depths:
                 model_name = base_name + "_" + str(depth)
                 if base_name == "rf":
                     model = RandomForestClassifier(max_depth=depth, class_weight='balanced', random_state=42)
                     candidates['rf'][model_name] = model
+                elif base_name == "dt":
+                    model = DecisionTreeClassifier(
+                        max_depth=depth,
+                        class_weight="balanced",
+                        random_state=42
+                    )
+                    candidates["dt"][model_name] = model
                 else:
-                    model = DecisionTreeClassifier(max_depth=depth, class_weight='balanced', random_state=42)
-                    candidates['dt'][model_name] = model
+                    model = ExtraTreesClassifier(
+                        n_estimators=200,
+                        max_depth=depth,
+                        class_weight="balanced",
+                        random_state=42
+                    )
+                    candidates["et"][model_name] = model
+                    
         #print(candidates)
         return candidates
 
     def train_eval(self):
         candidates = self.get_candidates()
+        best_model_et = None
+        best_name_et = None
+        best_train_time_et = None
+        best_score_et = -1
 
         best_model_rf = None
         best_name_rf = None
@@ -83,22 +100,53 @@ class ModelTrainer:
                 best_model_rf = rf_model
                 best_name_rf = rf_model_name
                 best_train_time_rf = train_time
-        return {best_name_dt:(best_model_dt, best_train_time_dt), best_name_rf:(best_model_rf,best_train_time_rf)}
+
+        # Tune Extra Trees using validation data
+        for et_model_name, et_model in candidates["et"].items():
+            start_time = time.time()
+            et_model.fit(self.X_train, self.y_train)
+            train_time = time.time() - start_time
+
+            f1 = f1_score(
+                self.y_val,
+                et_model.predict(self.X_val),
+                average="macro"
+            )
+
+            if f1 > best_score_et:
+                best_score_et = f1
+                best_model_et = et_model
+                best_name_et = et_model_name
+                best_train_time_et = train_time
+        return {
+            best_name_dt: (best_model_dt, best_train_time_dt, best_score_dt),
+            best_name_rf: (best_model_rf, best_train_time_rf, best_score_rf),
+            best_name_et: (best_model_et, best_train_time_et, best_score_et)
+        }
 
     def test_save(self):
         results = None
         model_dict = self.train_eval()
         best_model = None
         best_score = -1
-
+        comparison_rows = []
         for model_name in model_dict:
            model = model_dict[model_name][0]
            y_pred = model.predict(self.X_test)
            precision, recall, f1, _ = precision_recall_fscore_support(self.y_test, y_pred, average='macro')
            accuracy = accuracy_score(self.y_test, y_pred)
-           if f1 > best_score:
+           comparison_rows.append({
+               "model": model_name,
+               "validation_f1": model_dict[model_name][2],
+               "test_f1": f1,
+               "test_precision": precision,
+               "test_recall": recall,
+               "test_accuracy": accuracy,
+               "train_time_seconds": model_dict[model_name][1]
+           })
+           if model_dict[model_name][2] > best_score:
                best_model = model
-               best_score = f1
+               best_score = model_dict[model_name][2]
                results = {
                        'model': str(model),
                        'name': model_name,
@@ -111,6 +159,7 @@ class ModelTrainer:
                        'confusion_matrix': confusion_matrix(self.y_test, y_pred, labels=best_model.classes_).tolist(),
                        'feature_ranking': dict(zip(self.FEATURES, best_model.feature_importances_.tolist()))
                }
+        pd.DataFrame(comparison_rows).to_csv("models/model_comparison.csv", index=False)
         with open('models/metrics.json', 'w') as outfile:
             json.dump(results, outfile)
         joblib.dump(best_model, 'models/best_model.pkl')
