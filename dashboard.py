@@ -114,9 +114,13 @@ with performance:
 
     left, right = st.columns(2)
     with left, st.container(border=True):
-        st.subheader("Confusion Matrix")
-        cm_df = pd.DataFrame(metrics['confusion_matrix'], index=df['day_type'].unique(), columns=df['day_type'].unique())
-        st.dataframe(cm_df, use_container_width=True)
+            st.subheader("Confusion Matrix")
+            st.caption("Rows: actual weather type. Columns: predicted weather type.")
+            cm_df = pd.DataFrame(
+                metrics['confusion_matrix'],
+                index=metrics['class_labels'],
+                columns=metrics['class_labels'])
+            st.dataframe(cm_df, use_container_width=True)
     with right, st.container(border=True):
         st.subheader("Feature Importances")
         fi_df = pd.Series(metrics['feature_ranking']).sort_values()
