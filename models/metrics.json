@@ -1,1 +1,60 @@
-{"model": "RandomForestClassifier(class_weight='balanced', max_depth=7, random_state=42)", "name": "rf_7", "f1": 0.9126502918929285, "precision": 0.9161500864726673, "recall": 0.9102584806388409, "accuracy": 0.9422222222222222, "train_time": "0.2719893455505371 seconds", "class_labels": ["Cloudy", "Cold", "Hot", "Rainy", "Sunny"], "confusion_matrix": [[59, 1, 2, 1, 1], [1, 15, 0, 0, 1], [2, 1, 20, 0, 1], [0, 0, 0, 12, 1], [0, 1, 0, 0, 106]], "feature_ranking": {"day_of_year": 0.14985556588919585, "day_temp": 0.2759497416458321, "humidity": 0.14563067256648626, "cloud_cover": 0.33493375648966195, "uv_index": 0.09363026340882387}}
+{
+  "model": "RandomForestClassifier(class_weight='balanced', max_features=1,\n                       min_samples_leaf=5, n_estimators=200, random_state=42)",
+  "name": "rf_dNone_n200_leaf5_mf1",
+  "f1": 0.9181898168436142,
+  "precision": 0.924961704961705,
+  "recall": 0.9133834806388409,
+  "accuracy": 0.9466666666666667,
+  "train_time": 0.47484493255615234,
+  "class_labels": [
+    "Cloudy",
+    "Cold",
+    "Hot",
+    "Rainy",
+    "Sunny"
+  ],
+  "confusion_matrix": [
+    [
+      60,
+      1,
+      1,
+      1,
+      1
+    ],
+    [
+      1,
+      15,
+      0,
+      0,
+      1
+    ],
+    [
+      2,
+      1,
+      20,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0,
+      12,
+      1
+    ],
+    [
+      0,
+      1,
+      0,
+      0,
+      106
+    ]
+  ],
+  "feature_ranking": {
+    "day_of_year": 0.16225398736807062,
+    "day_temp": 0.231248249257466,
+    "humidity": 0.13324258373521508,
+    "cloud_cover": 0.3125594396798753,
+    "uv_index": 0.16069573995937314
+  }
+}

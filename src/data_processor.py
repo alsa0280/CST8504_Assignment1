@@ -9,9 +9,6 @@ from pathlib import Path
 import joblib
 
 RAW_CSV_PATH = 'data/raw/weather_data.csv'
-DASH = '-'
-NUM_DASHES = 10
-DASH_HEADER = "\n" + DASH * NUM_DASHES + "\n"
 
 class DataProcessor:
     def __init__(self, csv_path=RAW_CSV_PATH):
@@ -24,11 +21,6 @@ class DataProcessor:
 
         self.preprocess_data()
         self.save_processed_data()
-
-        day_type_classes = self.df['day_type'].unique()
-        day_type_counts = self.df['day_type'].value_counts()
-        plt.bar(day_type_classes, day_type_counts)
-
     def preprocess_data(self):
         self.replace_nan()
         self.remove_duplicates()
@@ -49,7 +41,6 @@ class DataProcessor:
             split[numeric_cols] = scaler.transform(split[numeric_cols])
         self.df[numeric_cols] = scaler.transform(self.df[numeric_cols])
         joblib.dump(scaler, "models/scaler.pkl")
-
     def create_subsets(self):
         train, temp = train_test_split(self.df, test_size=0.30,stratify=self.df['day_type'], random_state=42)
         val, test = train_test_split(temp, test_size=0.50,stratify=temp['day_type'], random_state=42)
@@ -61,49 +52,3 @@ class DataProcessor:
 
 if __name__ == "__main__":
     data_processor = DataProcessor()
-
-
-
-
-"""
-# First 5 records
-print(f"\nFIRST 5 RECORDS {DASH_HEADER} {df.head()}")
-
-# Data types of columns
-print(f"\nDATA TYPES {DASH_HEADER} {df.dtypes}")
-
-# Summary statistics
-print(f"\nSUMMARY STATISTICS {DASH_HEADER} {df.describe()}")
-
-# Check how many NaN or NaT values are in each column
-print(f"\nHOW MANY NULL VALUES PER COLUMN? {DASH_HEADER} {df.isna().sum()}")
-# Replace any feature NaN values with their columnal median
-for column in df.columns[:-1]:
-    df[column] = df[column].fillna(df[column].median())
-
-# Remove any unlabelled instances
-df = df.dropna(subset=['day_type'])
-
-# Check for duplicates
-print(f"\nHOW MANY DUPLICATES IN DATASET? {DASH_HEADER} {df.duplicated().sum()}")
-# Remove any duplicates
-df = df.drop_duplicates()
-
-# Scale numeric features
-scaler = MinMaxScaler()
-numeric_cols = df.columns[:-1]
-df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-"""
-
-# Create training set (70%), test set (15%), validation set (15%)
-"""
-df_size = len(df)
-train_size = int(df_size*0.7)
-test_size, val_size = [df_size-train_size, df_size-train_size]
-
-df_train = df.iloc[:train_size]
-df_val = df.iloc[train_size:val_size]
-df_test = df.iloc[val_size:]
-"""
-
-
