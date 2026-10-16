@@ -8,6 +8,7 @@ import streamlit as st
 import plotly.express as px
 import numpy as np
 import json
+import statsmodels
 
 st.set_page_config(page_title="Weather Dashboard", layout="wide")
 
@@ -65,25 +66,31 @@ with explore:
     # Bar chart
     with left, st.container(border=True):
         bar_df = filtered_df['day_type'].value_counts().reset_index()
-        barfig = px.bar(bar_df, x='day_type', y='count', color='day_type', color_discrete_map=DAY_COLORS, title="Number of Days per Day Type", labels={'day_type': 'Day type', 'count': 'Count'})
+        barfig = px.bar(bar_df, x='day_type', y='count', color='day_type',
+                        color_discrete_map=DAY_COLORS, text_auto=True,
+                        title="Number of Days per Day Type",
+                        labels={'day_type': 'Day type', 'count': 'Count'})
+        barfig.update_traces(textposition='outside', cliponaxis=False)
         barfig.update_layout(showlegend=False)
         st.plotly_chart(barfig, use_container_width=True)
+        st.caption("The number of days in the dataset that correspond to a particular day type.")
 
     # Line chart
     with right, st.container(border=True):
-        line_yaxis = st.selectbox("Feature over time", possible_features)
+        line_yaxis = st.selectbox("Select Feature", possible_features)
         line_df = filtered_df[['day_of_year', line_yaxis]].groupby('day_of_year').mean().reset_index()
-        linefig = px.line(line_df, x='day_of_year', y=line_yaxis,title=f"Average {line_yaxis.replace('_', ' ')} by Day of Year",labels={'day_of_year': 'Day of year'})
+        linefig = px.line(line_df, x='day_of_year', y=line_yaxis,title=f"Average {line_yaxis} over day_over_year",labels={'day_of_year': 'Day of year'})
         st.plotly_chart(linefig, use_container_width=True)
+        st.caption(f"A line plot showing how {line_yaxis} changes over a year.")
 
     # Scatter
     with st.container(border=True):
         sx, sy = st.columns(2)
         xscatter = sx.selectbox("X axis", possible_features, index=0)
         yscatter = sy.selectbox("Y axis", possible_features, index=1)
-        scatterfig = px.scatter(filtered_df, x=xscatter, y=yscatter, color='day_type',color_discrete_map=DAY_COLORS,title=f"{yscatter} vs {xscatter}",labels={'day_type': 'Day type'})
-        scatterfig.update_layout(title_x=0.5)
+        scatterfig = px.scatter(filtered_df, trendline='ols', trendline_scope="overall", x=xscatter, y=yscatter, color='day_type',color_discrete_map=DAY_COLORS,title=f"{yscatter} vs {xscatter}",labels={'day_type': 'Day type'})
         st.plotly_chart(scatterfig, use_container_width=True)
+        st.caption(f"A scatter plot comparing {xscatter} and {yscatter} over time.")
 
 with predict:
     st.subheader("Predict the Day Type")
@@ -102,26 +109,51 @@ with predict:
             font_color = DAY_COLORS[label]
             st.markdown(f'Predicted day type: <span style="color: {font_color}; font-weight: bold;">{label}</span>',unsafe_allow_html=True)
             prob_df = pd.DataFrame({'Day Type':probabilities.keys(), 'Probability':np.array(list(probabilities.values()))*100})
-            st.dataframe(prob_df, hide_index=True)
-            piefig = px.pie(prob_df, values='Probability', names='Day Type', color='Day Type', color_discrete_map=DAY_COLORS)
+            st.dataframe(prob_df.round(3), hide_index=True)
+            piefig = px.pie(prob_df.round(3), title="Probability of Day Type", values='Probability', names='Day Type', color='Day Type', color_discrete_map=DAY_COLORS)
             st.plotly_chart(piefig, use_container_width=True)
+            st.caption("The probability of the conditions provided resulting in a particular day type, estimated by the best model.")
 
 with performance:
     with open('models/metrics.json', 'r') as f:
         metrics = json.load(f)
+
+    with open('models/metrics.json', 'r') as f:
+        metrics = json.load(f)
+
     st.subheader("Best Model")
-    st.dataframe(pd.DataFrame([metrics])[['model', 'name','train_time','f1','precision','accuracy','recall']], hide_index=True, use_container_width=True)
+    st.table(pd.DataFrame([metrics])[['model', 'name', 'train_time', 'f1', 'precision', 'accuracy', 'recall']].round(3))
+
+    st.subheader("Model Comparison")
+    comparison = pd.read_csv('models/model_comparison.csv')
+    comparison = comparison.sort_values('validation_f1', ascending=False)
+    st.dataframe(comparison.round(3), hide_index=True, use_container_width=True)
+
+    with st.container(border=True):
+        metric_cols = ['test_accuracy', 'test_precision', 'test_recall', 'test_f1']
+        long_df = comparison.melt(id_vars='model', value_vars=metric_cols, var_name='metric', value_name='score')
+        compfig = px.bar(long_df, x='metric', y='score', color='model', barmode='group', text_auto='.3f', range_y=[0, 1.05], title="Test Metrics by Model")
+        compfig.update_traces(textposition='outside')
+        st.plotly_chart(compfig, use_container_width=True)
+        st.caption("The top-performing models of each classification family are shown.")
 
     left, right = st.columns(2)
+
     with left, st.container(border=True):
-            st.subheader("Confusion Matrix")
-            st.caption("Rows: actual weather type. Columns: predicted weather type.")
-            cm_df = pd.DataFrame(
-                metrics['confusion_matrix'],
-                index=metrics['class_labels'],
-                columns=metrics['class_labels'])
-            st.dataframe(cm_df, use_container_width=True)
+        cmfig = px.imshow(
+            metrics['confusion_matrix'],
+            title="Confusion Matrix",
+                          x=metrics['class_labels'], y=metrics['class_labels'],
+                          text_auto=True, color_continuous_scale='Blues',
+                          labels={'x': 'Predicted', 'y': 'Actual', 'color': 'Count'})
+        cmfig.update_layout(coloraxis_showscale=False)
+        st.plotly_chart(cmfig, use_container_width=True)
+        st.caption("Rows are the actual value; the columns are what the best model predicted they would be.")
+
     with right, st.container(border=True):
-        st.subheader("Feature Importances")
         fi_df = pd.Series(metrics['feature_ranking']).sort_values()
-        st.plotly_chart(px.bar(x=fi_df.values, y=fi_df.index,labels={'x': 'Importance', 'y': 'Feature'}), use_container_width=True)
+        fifig = px.bar(title="Feature Importances", x=fi_df.values, y=fi_df.index, orientation='h', text_auto='.3f',
+                       labels={'x': 'Importance', 'y': 'Feature'})
+        fifig.update_traces(textposition='outside', cliponaxis=False)
+        st.plotly_chart(fifig, use_container_width=True)
+        st.caption("This is how the best model ranked the importance of the features in making its predictions.")

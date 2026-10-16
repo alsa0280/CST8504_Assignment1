@@ -2,7 +2,7 @@
 FROM python:3.10-slim
  
 # 2. Set the working folder inside the container
-WORKDIR /app
+WORKDIR /project
  
 # 3. Copy only requirements first, then install them.
 #    Docker caches this layer, so libraries are not reinstalled

@@ -1,170 +1,142 @@
+import json
+import time
+from itertools import product
+
+import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import classification_report, confusion_matrix, f1_score, accuracy_score, precision_recall_fscore_support
-from src.data_processor import DataProcessor
-import joblib
-import time
-import json
+from sklearn.metrics import (confusion_matrix, f1_score, accuracy_score,
+                             precision_recall_fscore_support)
 
-#print(classification_report(y_test, y_pred))
-#print(confusion_matrix(y_test, y_pred))
 
 class ModelTrainer:
-    def __init__(self, processed_dir = 'data/processed'):
+    def __init__(self, processed_dir='data/processed'):
         self.FEATURES = ['day_of_year', 'day_temp', 'humidity', 'cloud_cover', 'uv_index']
 
         self.train = pd.read_csv(processed_dir + '/weather_data_train.csv')
         self.test = pd.read_csv(processed_dir + '/weather_data_test.csv')
         self.val = pd.read_csv(processed_dir + '/weather_data_val.csv')
 
-        self.X_train = self.train.iloc[:,:-1]
-        self.y_train = self.train.iloc[:,-1]
+        self.X_train = self.train.iloc[:, :-1]
+        self.y_train = self.train.iloc[:, -1]
 
-        self.X_test = self.test.iloc[:,:-1]
-        self.y_test = self.test.iloc[:,-1]
+        self.X_test = self.test.iloc[:, :-1]
+        self.y_test = self.test.iloc[:, -1]
 
-        self.X_val = self.val.iloc[:,:-1]
-        self.y_val = self.val.iloc[:,-1]
+        self.X_val = self.val.iloc[:, :-1]
+        self.y_val = self.val.iloc[:, -1]
 
     def get_candidates(self):
-        depths = [3,5,7,9]
-        base_names = ["rf", "dt", "et"]
+        depths = [3, 5, 7, 9, None]
+        n_estimators = [100, 200, 300]
+        min_samples_leaf = [1, 2, 5]
+        max_features = ['sqrt', 1]   # 1 (an int) = each split looks at only 1 random feature
+
         candidates = {'rf': {}, 'dt': {}, 'et': {}}
-        for base_name in base_names:
-            for depth in depths:
-                model_name = base_name + "_" + str(depth)
-                if base_name == "rf":
-                    model = RandomForestClassifier(max_depth=depth, class_weight='balanced', random_state=42)
-                    candidates['rf'][model_name] = model
-                elif base_name == "dt":
-                    model = DecisionTreeClassifier(
-                        max_depth=depth,
-                        class_weight="balanced",
-                        random_state=42
-                    )
-                    candidates["dt"][model_name] = model
-                else:
-                    model = ExtraTreesClassifier(
-                        n_estimators=200,
-                        max_depth=depth,
-                        class_weight="balanced",
-                        random_state=42
-                    )
-                    candidates["et"][model_name] = model
-                    
-        #print(candidates)
+
+        # Random forest and extra trees: every combination of all four parameters
+        # (5 depths x 3 tree counts x 3 leaf sizes x 2 feature settings = 90 models each)
+        for depth, n_est, leaf, max_feat in product(depths, n_estimators, min_samples_leaf, max_features):
+            suffix = f"_d{depth}_n{n_est}_leaf{leaf}_mf{max_feat}"
+            candidates['rf']['rf' + suffix] = RandomForestClassifier(
+                max_depth=depth, n_estimators=n_est, min_samples_leaf=leaf,
+                max_features=max_feat, class_weight='balanced',
+                random_state=42)
+            candidates['et']['et' + suffix] = ExtraTreesClassifier(
+                max_depth=depth, n_estimators=n_est, min_samples_leaf=leaf,
+                max_features=max_feat, class_weight='balanced',
+                random_state=42)
+
+        for depth, leaf, max_feat in product(depths, min_samples_leaf, max_features):
+            name = f"dt_d{depth}_leaf{leaf}_mf{max_feat}"
+            candidates['dt'][name] = DecisionTreeClassifier(
+                max_depth=depth, min_samples_leaf=leaf, max_features=max_feat,
+                class_weight='balanced', random_state=42)
+
         return candidates
 
     def train_eval(self):
+        """For each family, train every candidate and keep the one with the best VALIDATION macro F1."""
         candidates = self.get_candidates()
-        best_model_et = None
-        best_name_et = None
-        best_train_time_et = None
-        best_score_et = -1
+        best_per_family = {}
+        all_rows = []
 
-        best_model_rf = None
-        best_name_rf = None
-        best_train_time_rf = None
-        best_score_rf = -1
+        for family, models in candidates.items():
+            best_name, best_model, best_time, best_score = None, None, None, -1
+            print(f"Tuning {family} ({len(models)} candidates)...")
 
-        best_model_dt = None
-        best_name_dt = None
-        best_train_time_dt = None
-        best_score_dt = -1
+            for model_name, model in models.items():
+                start_time = time.time()
+                model.fit(self.X_train, self.y_train)
+                train_time = time.time() - start_time
 
-        # tune dt
-        for dt_model_name in candidates['dt']:
-            dt_model = candidates['dt'][dt_model_name]
-            start_time = time.time()
-            dt_model.fit(self.X_train,self.y_train)
-            end_time = time.time()
-            train_time = end_time - start_time
-            f1 = f1_score(self.y_val, dt_model.predict(self.X_val), average='macro')
-            if f1 > best_score_dt:
-                best_score_dt = f1
-                best_model_dt = dt_model
-                best_name_dt = dt_model_name
-                best_train_time_dt = train_time
+                f1 = f1_score(self.y_val, model.predict(self.X_val), average='macro')
+                all_rows.append({"family": family, "model": model_name,
+                                 "validation_f1": f1, "train_time_seconds": train_time})
 
-        # tune rf
-        for rf_model_name in candidates['rf']:
-            rf_model = candidates['rf'][rf_model_name]
-            start_time = time.time()
-            rf_model.fit(self.X_train, self.y_train)
-            end_time = time.time()
-            train_time = end_time - start_time
-            f1 = f1_score(self.y_val, rf_model.predict(self.X_val), average='macro')
-            if f1 > best_score_rf:
-                best_score_rf = f1
-                best_model_rf = rf_model
-                best_name_rf = rf_model_name
-                best_train_time_rf = train_time
+                if f1 > best_score:
+                    best_name, best_model, best_time, best_score = model_name, model, train_time, f1
 
-        # Tune Extra Trees using validation data
-        for et_model_name, et_model in candidates["et"].items():
-            start_time = time.time()
-            et_model.fit(self.X_train, self.y_train)
-            train_time = time.time() - start_time
+            print(f"  best: {best_name} (validation F1 = {best_score:.3f})")
+            best_per_family[best_name] = (best_model, best_time, best_score)
 
-            f1 = f1_score(
-                self.y_val,
-                et_model.predict(self.X_val),
-                average="macro"
-            )
+        # Every candidate's validation score, useful for the report's appendix
+        pd.DataFrame(all_rows).sort_values("validation_f1", ascending=False) \
+            .to_csv("models/tuning_results.csv", index=False)
 
-            if f1 > best_score_et:
-                best_score_et = f1
-                best_model_et = et_model
-                best_name_et = et_model_name
-                best_train_time_et = train_time
-        return {
-            best_name_dt: (best_model_dt, best_train_time_dt, best_score_dt),
-            best_name_rf: (best_model_rf, best_train_time_rf, best_score_rf),
-            best_name_et: (best_model_et, best_train_time_et, best_score_et)
-        }
+        return best_per_family
 
     def test_save(self):
+        """Score each family's finalist on the TEST set once, then save the best one."""
         results = None
         model_dict = self.train_eval()
         best_model = None
         best_score = -1
         comparison_rows = []
-        for model_name in model_dict:
-           model = model_dict[model_name][0]
-           y_pred = model.predict(self.X_test)
-           precision, recall, f1, _ = precision_recall_fscore_support(self.y_test, y_pred, average='macro')
-           accuracy = accuracy_score(self.y_test, y_pred)
-           comparison_rows.append({
-               "model": model_name,
-               "validation_f1": model_dict[model_name][2],
-               "test_f1": f1,
-               "test_precision": precision,
-               "test_recall": recall,
-               "test_accuracy": accuracy,
-               "train_time_seconds": model_dict[model_name][1]
-           })
-           if model_dict[model_name][2] > best_score:
-               best_model = model
-               best_score = model_dict[model_name][2]
-               results = {
-                       'model': str(model),
-                       'name': model_name,
-                       'f1': f1,
-                       'precision': precision,
-                       'recall': recall,
-                       'accuracy': accuracy,
-                       'train_time': str(model_dict[model_name][1]) + " seconds",
-                       'class_labels': best_model.classes_.tolist(),
-                       'confusion_matrix': confusion_matrix(self.y_test, y_pred, labels=best_model.classes_).tolist(),
-                       'feature_ranking': dict(zip(self.FEATURES, best_model.feature_importances_.tolist()))
-               }
-        pd.DataFrame(comparison_rows).to_csv("models/model_comparison.csv", index=False)
+
+        for model_name, (model, train_time, val_f1) in model_dict.items():
+            y_pred = model.predict(self.X_test)
+            precision, recall, f1, _ = precision_recall_fscore_support(
+                self.y_test, y_pred, average='macro', zero_division=0)
+            accuracy = accuracy_score(self.y_test, y_pred)
+            comparison_rows.append({
+                "model": model_name,
+                "validation_f1": val_f1,
+                "test_f1": f1,
+                "test_precision": precision,
+                "test_recall": recall,
+                "test_accuracy": accuracy,
+                "train_time_seconds": train_time
+            })
+
+            # The winner is picked by validation F1, so the test set stays an unbiased final check
+            if val_f1 > best_score:
+                best_model = model
+                best_score = val_f1
+                results = {
+                    'model': str(model),
+                    'name': model_name,
+                    'f1': f1,
+                    'precision': precision,
+                    'recall': recall,
+                    'accuracy': accuracy,
+                    'train_time': train_time,
+                    'class_labels': model.classes_.tolist(),
+                    'confusion_matrix': confusion_matrix(self.y_test, y_pred, labels=model.classes_).tolist(),
+                    'feature_ranking': dict(zip(self.FEATURES, model.feature_importances_.tolist()))
+                }
+
+        comparison = pd.DataFrame(comparison_rows)
+        comparison.to_csv("models/model_comparison.csv", index=False)
         with open('models/metrics.json', 'w') as outfile:
-            json.dump(results, outfile)
+            json.dump(results, outfile, indent=2)
         joblib.dump(best_model, 'models/best_model.pkl')
         joblib.dump(results, 'models/results.pkl')
-        print(results)
+
+        print("\n" + comparison.round(3).to_string(index=False))
+        print(f"\nBest model: {results['name']}")
+
 
 if __name__ == '__main__':
     model_trainer = ModelTrainer()
