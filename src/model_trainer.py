@@ -1,13 +1,11 @@
 import json
 import time
 from itertools import product
-
 import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import (confusion_matrix, f1_score, accuracy_score,
-                             precision_recall_fscore_support)
+from sklearn.metrics import (confusion_matrix, f1_score, accuracy_score, precision_recall_fscore_support)
 
 
 class ModelTrainer:
@@ -31,12 +29,10 @@ class ModelTrainer:
         depths = [3, 5, 7, 9, None]
         n_estimators = [100, 200, 300]
         min_samples_leaf = [1, 2, 5]
-        max_features = ['sqrt', 1]   # 1 (an int) = each split looks at only 1 random feature
+        max_features = ['sqrt', 1]
 
         candidates = {'rf': {}, 'dt': {}, 'et': {}}
 
-        # Random forest and extra trees: every combination of all four parameters
-        # (5 depths x 3 tree counts x 3 leaf sizes x 2 feature settings = 90 models each)
         for depth, n_est, leaf, max_feat in product(depths, n_estimators, min_samples_leaf, max_features):
             suffix = f"_d{depth}_n{n_est}_leaf{leaf}_mf{max_feat}"
             candidates['rf']['rf' + suffix] = RandomForestClassifier(
@@ -57,7 +53,6 @@ class ModelTrainer:
         return candidates
 
     def train_eval(self):
-        """For each family, train every candidate and keep the one with the best VALIDATION macro F1."""
         candidates = self.get_candidates()
         best_per_family = {}
         all_rows = []
@@ -81,14 +76,12 @@ class ModelTrainer:
             print(f"  best: {best_name} (validation F1 = {best_score:.3f})")
             best_per_family[best_name] = (best_model, best_time, best_score)
 
-        # Every candidate's validation score, useful for the report's appendix
         pd.DataFrame(all_rows).sort_values("validation_f1", ascending=False) \
             .to_csv("models/tuning_results.csv", index=False)
 
         return best_per_family
 
     def test_save(self):
-        """Score each family's finalist on the TEST set once, then save the best one."""
         results = None
         model_dict = self.train_eval()
         best_model = None
@@ -110,7 +103,6 @@ class ModelTrainer:
                 "train_time_seconds": train_time
             })
 
-            # The winner is picked by validation F1, so the test set stays an unbiased final check
             if val_f1 > best_score:
                 best_model = model
                 best_score = val_f1
@@ -136,7 +128,6 @@ class ModelTrainer:
 
         print("\n" + comparison.round(3).to_string(index=False))
         print(f"\nBest model: {results['name']}")
-
 
 if __name__ == '__main__':
     model_trainer = ModelTrainer()
