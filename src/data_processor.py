@@ -1,11 +1,6 @@
 import pandas as pd
-import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-import sys
-from pathlib import Path
-#sys.path.insert(0, str(Path(__file__).resolve().parent))
 import joblib
 
 RAW_CSV_PATH = 'data/raw/weather_data.csv'
@@ -14,11 +9,9 @@ class DataProcessor:
     def __init__(self, csv_path=RAW_CSV_PATH):
         self.df = pd.read_csv(csv_path)
         self.raw_df = self.df.copy()
-
         self.df_train = None
         self.df_val = None
         self.df_test = None
-
         self.preprocess_data()
         self.save_processed_data()
     def preprocess_data(self):

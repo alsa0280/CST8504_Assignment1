@@ -1,14 +1,10 @@
-import sys
 import pandas as pd
-from pathlib import Path
-#sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.data_processor import DataProcessor
 from src.predictor import Predictor
 import streamlit as st
 import plotly.express as px
 import numpy as np
 import json
-import statsmodels
 
 st.set_page_config(page_title="Weather Dashboard", layout="wide")
 
@@ -41,9 +37,11 @@ with overview:
 
     st.subheader("Preview Table")
     st.dataframe(raw_df.head(20), use_container_width=True, hide_index=True)
+    st.caption("First 20 rows of the dataset.")
 
     st.subheader("Summary Statistics")
     st.dataframe(raw_df.describe().round(2), use_container_width=True)
+    st.caption("Count, mean, standard deviation, minimum, quartiles and maximum of each numeric feature.")
 
 with explore:
     filtered_df = raw_df
@@ -109,8 +107,10 @@ with predict:
         with st.container(border=True):
             font_color = DAY_COLORS[label]
             st.markdown(f'Predicted day type: <span style="color: {font_color}; font-weight: bold;">{label}</span>',unsafe_allow_html=True)
+            st.markdown("**Predicted probability of each day type (%)**")
             prob_df = pd.DataFrame({'Day Type':probabilities.keys(), 'Probability':np.array(list(probabilities.values()))*100})
             st.dataframe(prob_df.round(3), hide_index=True)
+            st.caption("Probabilities from the best model for the conditions entered.")
             piefig = px.pie(prob_df.round(3), title="Probability of Day Type", values='Probability', names='Day Type', color='Day Type', color_discrete_map=DAY_COLORS)
             st.plotly_chart(piefig, use_container_width=True)
             st.caption("The probability of the conditions provided resulting in a particular day type, estimated by the best model.")
@@ -123,12 +123,16 @@ with performance:
         metrics = json.load(f)
 
     st.subheader("Best Model")
+    st.markdown("**Test results of the best model**")
     st.table(pd.DataFrame([metrics])[['model', 'name', 'train_time', 'f1', 'precision', 'accuracy', 'recall']].round(3))
+    st.caption("Macro-average metrics on the test set.")
 
     st.subheader("Model Comparison")
     comparison = pd.read_csv('models/model_comparison.csv')
     comparison = comparison.sort_values('validation_f1', ascending=False)
+    st.markdown("**Best configuration of each model family**")
     st.dataframe(comparison.round(3), hide_index=True, use_container_width=True)
+    st.caption("Candidates chosen by validation macro F1 then scored on the test set.")
 
     with st.container(border=True):
         metric_cols = ['test_accuracy', 'test_precision', 'test_recall', 'test_f1']
