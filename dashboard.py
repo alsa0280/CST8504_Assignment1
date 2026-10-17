@@ -87,7 +87,8 @@ with explore:
     with st.container(border=True):
         sx, sy = st.columns(2)
         xscatter = sx.selectbox("X axis", possible_features, index=0)
-        yscatter = sy.selectbox("Y axis", possible_features, index=1)
+        y_options = [y for y in possible_features if y!=xscatter]
+        yscatter = sy.selectbox("Y axis", y_options, index=1)
         scatterfig = px.scatter(filtered_df, trendline='ols', trendline_scope="overall", x=xscatter, y=yscatter, color='day_type',color_discrete_map=DAY_COLORS,title=f"{yscatter} vs {xscatter}",labels={'day_type': 'Day type'})
         st.plotly_chart(scatterfig, use_container_width=True)
         st.caption(f"A scatter plot comparing {xscatter} and {yscatter} over time.")

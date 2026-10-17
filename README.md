@@ -1,170 +1,84 @@
-
-
-\# Weather Day Type Prediction Dashboard
-
-
+# Weather Day Type Prediction Dashboard
 
 CST8504 Assignment 1
 
+GitHub repo: https://github.com/alsa0280/CST8504_Assignment1
 
+## Authors
 
-GitHub repo link: https://github.com/alsa0280/CST8504\_Assignment1
+- Hadi Al-Sayed Ali (041181821)
+- Danish Manro (041291839)
 
+## Summary
 
+This project predicts the type of day (Sunny, Cloudy, Rainy, Hot or Cold) from five weather measurements. It includes a data processing pipeline, tuned and compared classification models, and a Streamlit dashboard that makes interactive predictions with the best-performing model.
 
-
-
-
-
-
-
-
-
-\## Authors
-
-Hadi Al-Sayed Ali (041181821)
-
-
-
-Danish Manro (041291839)
-
-
-
-\## Summary
-
-
-
-This project predicts the type of day (Sunny, Cloudy, Rainy, Hot, or Cold) from five weather measurements. It includes a data processing pipeline, tuned and compared classification models, and a Streamlit dashboard with interactive prediction capabilities with the best-performing model. 
-
-\## Running the project (Docker)
+## Running the project (Docker)
 
 ```
-
-docker build -t weather\_dashboard .
-
-docker run --rm -p 8501:8501 --name dashboard weather\_dashboard
-
+docker build -t weather_dashboard .
+docker run --rm -p 8501:8501 --name dashboard weather_dashboard
 ```
 
-Then open ```http://localhost:8501/```. Change the port number if it's already taken.
+Then open http://localhost:8501.
 
+## Data
 
+The raw dataset is in `data/raw/weather_data.csv` and contains 1,500 day records.
 
-\## Data
+- **Features:** `day_of_year`, `day_temp` (degrees Celsius), `humidity` (%), `cloud_cover` (%) and `uv_index`
+- **Target:** `day_type`
 
+In `src/data_processor.py`:
 
+- missing feature values are imputed with column medians, and unlabelled rows are dropped
+- duplicate rows are removed
+- training (70%), validation (15%) and test (15%) sets are created with a stratified split
+- a `MinMaxScaler` is fitted on the training set and saved to `models/scaler.pkl`
+- the three sets are saved to `data/processed/`
 
-The raw dataset can be found in ```data/raw/weather\_data.csv``` and contains 1,500 day records. 
+## Models
 
-\* \*\*Features\*\*: ```day\_of\_year```, ```day\_temp``` in degrees celcius, ```humidity``` percentage, ```cloud\_cover``` percentage, and ```uv\_index```
+`src/model_trainer.py` tunes three classifiers, `DecisionTreeClassifier`, `RandomForestClassifier` and `ExtraTreesClassifier`, on combinations of the following parameters:
 
-\* \*\*Target\*\*: ```day\_type```
+- `max_depth`
+- `n_estimators` (random forest and extra trees only)
+- `min_samples_leaf`
+- `max_features`
 
+This gives 210 configurations in total. The best configuration of each family is chosen by macro F1 on the validation set, and the three finalists are then compared once on the test set. The best model, a random forest, is saved to `models/best_model.pkl`, and `src/predictor.py` loads it to make predictions in the dashboard.
 
-
-In ```src/data\_processor.py```, 
-
-\* the raw dataset's missing values are imputed with column medians
-
-\* duplicate rows are removed
-
-\* outliers are checked within reasonable ranges (with impossible values removed entirely)
-
-\* training (70%), testing (15%), and validation (15%) splits are cre ated
-
-\* a ```MinMax``` scaler is fitted on the training set and saved to ```models/scaler.pkl```
-
-\* the three sets are saved to ```data/processed```
-
-\## Models
-
-
-
-```src/model\_trainer.py``` tunes three classification model families on combinations of the following parameters:
-
-\* ```max\_depth```
-
-\* ```n\_estimators```
-
-\* ```min\_samples\_leaf```
-
-\* ```max\_features```
-
-
-
-This results in a total of 210 configurations of the three families. The three classification classes are ```DecisionTreeClassifier```, ```RandomForestClassifier```, and ```ExtraTreesClassifier```. 
-
-
-
-The models were compared by their macro F1 score on the validation set, and the saved model, a random forest, was saved to ```src/predictor.py``` for usage in dashboard predictions.
-
-\## Dashboard
-
-
+## Dashboard
 
 The Streamlit dashboard has four tabs:
 
+- **Data Overview:** dataset size, a preview of the raw data and summary statistics.
+- **Exploration:** filter by day type and feature ranges, then explore class counts (bar chart), average feature values over the year (line plot) and any two features against each other (scatter plot).
+- **Prediction:** set the five weather values and click "Predict" to see the predicted day type and the probability of each class.
+- **Model Performance:** the best model's metrics, a comparison of the three model families, a confusion matrix and feature importances.
 
-
-\*\*Data Overview\*\*: dataset size, a preview of the raw data, and summary statistics.
-
-
-
-\*\*Exploration\*\*: filter by day type and feature ranges, explore class counts (bar chart), average feature values over a year (line plot), and any two features against each other (scatter plot).
-
-
-
-\*\*Prediction\*\*: set the five weather values and click "Predict" to see the predicted day type and the probability of each class.
-
-
-
-\*\*Model Performance\*\*: the best model's metrics, a comparison of the three model families, a confusion matrix, and a feature ranking.
-
-\## Project Structure
+## Project Structure
 
 ```
-
-├── dashboard.py              
-
+├── dashboard.py              Streamlit dashboard
 ├── src/
-
-│   ├── data\_processor.py     cleaning, splitting, scaling
-
-│   ├── model\_trainer.py      tuning, evaluation, saving
-
-│   └── predictor.py          loads model + scaler, predicts new inputs
-
+│   ├── data_processor.py     Cleaning, splitting, scaling
+│   ├── model_trainer.py      Tuning, evaluation, saving
+│   └── predictor.py          Loads the model and scaler, predicts new inputs
 ├── notebooks/
-
 │   ├── Preprocessing.ipynb   Data inspection, missing values, duplicates, outliers
-
 │   └── EDA.ipynb             Exploratory data analysis
-
 ├── data/
-
 │   ├── raw/                  Original dataset
-
 │   └── processed/            Train, validation and test sets
-
 ├── models/
-
-│   ├── best\_model.pkl        
-
+│   ├── best_model.pkl        Trained best model
 │   ├── scaler.pkl            Fitted MinMaxScaler
-
 │   ├── metrics.json          Best model's test results (used by the dashboard)
-
-│   ├── model\_comparison.csv  Best model of each family, compared on the test set
-
-│   └── tuning\_results.csv    Validation F1 of all 210 configurations
-
+│   ├── results.pkl           Copy of the best model's results
+│   ├── model_comparison.csv  Best model of each family, compared on the test set
+│   └── tuning_results.csv    Validation F1 of all 210 configurations
 ├── Dockerfile
-
 ├── .dockerignore
-
 └── requirements.txt
-
-
-
 ```
-
